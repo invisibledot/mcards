@@ -44,6 +44,7 @@ let flashcards = [];
 let currentIndex = 0;
 let schedule = []; // priority queue based on score
 let scores = {};   // card front => score for scheduling
+let isFlipped = false;
 
 // --- DOM ---
 const container = document.getElementById('flashcard-container');
@@ -80,8 +81,10 @@ function sortSchedule() {
 // --- SHOW CARD ---
 function showFlashcard() {
   if (schedule.length === 0) return;
+
   const [front, back] = flashcards[schedule[currentIndex]];
   container.innerHTML = '';
+
   const card = document.createElement('div');
   card.className = 'flashcard';
   card.innerHTML = `
@@ -89,8 +92,15 @@ function showFlashcard() {
       <div class="card-front">${front}</div>
       <div class="card-back">${back}</div>
     </div>`;
-  card.addEventListener('click', () => card.classList.toggle('flipped'));
+
+  card.addEventListener('click', () => {
+    card.classList.toggle('flipped');
+    isFlipped = !isFlipped;
+  });
+
   container.appendChild(card);
+
+  isFlipped = false; // reset when new card appears
 }
 
 // --- NAVIGATION ---
@@ -165,24 +175,38 @@ container.addEventListener("touchend", (e) => {
 
   cardElement.style.transition = "transform 0.3s ease";
 
+  // 👉 SWIPE RIGHT
   if (deltaX > threshold) {
-    // Swipe Right → Correct
-    cardElement.style.transform = "translateX(1000px)";
-    setTimeout(() => {
-      document.body.style.background = "#f0f0f0";
-      updateScore(true);
-    }, 300);
 
-  } else if (deltaX < -threshold) {
-    // Swipe Left → Incorrect
+    // If not flipped yet → flip only
+    if (!isFlipped) {
+      cardElement.style.transform = "translateX(0)";
+      cardElement.classList.add("flipped");
+      isFlipped = true;
+      document.body.style.background = "#f0f0f0";
+    }
+
+    // If already flipped → mark correct
+    else {
+      cardElement.style.transform = "translateX(1000px)";
+      setTimeout(() => {
+        document.body.style.background = "#f0f0f0";
+        updateScore(true);
+      }, 300);
+    }
+
+  }
+
+  // 👈 SWIPE LEFT → always incorrect
+  else if (deltaX < -threshold) {
     cardElement.style.transform = "translateX(-1000px)";
     setTimeout(() => {
       document.body.style.background = "#f0f0f0";
       updateScore(false);
     }, 300);
+  }
 
-  } else {
-    // Snap back if not far enough
+  else {
     cardElement.style.transform = "translateX(0)";
     document.body.style.background = "#f0f0f0";
   }
