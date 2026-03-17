@@ -3,263 +3,55 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Smart Flashcards</title>
+<title>Flashcards Minimal</title>
 <style>
-  body { font-family: sans-serif; display: flex; flex-direction: column; align-items: center; margin: 0; padding: 20px; background: #f0f0f0; }
-  .flashcard { width: 300px; height: 200px; perspective: 1000px; margin: 20px; cursor: pointer; }
-  .card-inner { position: relative; width: 100%; height: 100%; text-align: center; transition: transform 0.6s; transform-style: preserve-3d; }
-  .flashcard.flipped .card-inner { transform: rotateY(180deg); }
-  .card-front, .card-back {
-    position: absolute; width: 100%; height: 100%; backface-visibility: hidden;
-    display: flex; justify-content: center; align-items: center; font-size: 20px; border-radius: 10px; padding: 20px;
-  }
-  .card-front { background: #ffffff; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
-  .card-back { background: #4caf50; color: white; transform: rotateY(180deg); box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
-  button { margin: 5px; padding: 10px 20px; font-size: 16px; }
+  body { font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #f0f0f0; }
+  .flashcard { width: 300px; height: 200px; background: white; box-shadow: 0 4px 6px rgba(0,0,0,0.1); border-radius: 10px; display: flex; justify-content: center; align-items: center; font-size: 24px; user-select: none; }
 </style>
-  <link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#4caf50">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="apple-mobile-web-app-title" content="Flashcards">
-<link rel="apple-touch-icon" href="icon-192.png">
 </head>
 <body>
 
-<h1>Smart Flashcards</h1>
-<div id="flashcard-container"></div>
-<div>
-  <button id="prev-btn">Previous</button>
-  <button id="next-btn">Next</button>
-  <button id="correct-btn">Correct</button>
-  <button id="incorrect-btn">Incorrect</button>
-</div>
+<div id="flashcard" class="flashcard"></div>
 
 <script>
-// --- CONFIG: Google Sheet CSV URL ---
-const SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTxIepyNc9GUZ3GhE6CLoFE3fSL9-6luVdRvuAmK7m7lC36kSTvHyCf_Sj35-nMHzKv1bXfhLlTqlQo/pub?gid=0&single=true&output=csv";
+// --- SIMPLE FLASHCARDS DATA ---
+const flashcards = [
+  "Card 1: Question A",
+  "Card 2: Question B",
+  "Card 3: Question C",
+  "Card 4: Question D"
+];
 
-// --- STATE ---
-let flashcards = [];
 let currentIndex = 0;
-let schedule = []; // priority queue based on score
-let scores = {};   // card front => score for scheduling
-let isFlipped = false;
+const cardDiv = document.getElementById("flashcard");
 
-// --- DOM ---
-const container = document.getElementById('flashcard-container');
-const prevBtn = document.getElementById('prev-btn');
-const nextBtn = document.getElementById('next-btn');
-const correctBtn = document.getElementById('correct-btn');
-const incorrectBtn = document.getElementById('incorrect-btn');
-
-// --- FETCH DATA ---
-async function fetchFlashcards() {
-  const res = await fetch(SHEET_CSV_URL, { cache: "no-store" });
-  const csv = await res.text();
-  flashcards = csv.trim().split('\n').map(row => row.split(','));
-  if (flashcards.length === 0) return;
-
-  // Load scores from localStorage
-  scores = JSON.parse(localStorage.getItem('flashcardScores') || '{}');
-
-  // Initialize schedule
-  schedule = flashcards.map((_, i) => i);
-  sortSchedule();
-  currentIndex = 0;
-  showFlashcard();
+// --- FUNCTION TO SHOW CURRENT CARD ---
+function showCard() {
+  cardDiv.textContent = flashcards[currentIndex];
 }
 
-// --- SORT SCHEDULE BY PRIORITY (low score = higher priority) ---
-function sortSchedule() {
-  schedule.sort((a, b) => {
-    const keyA = flashcards[a][0], keyB = flashcards[b][0];
-    return (scores[keyA] || 0) - (scores[keyB] || 0);
-  });
-}
+// --- SHOW INITIAL CARD ---
+showCard();
 
-// --- SHOW CARD ---
-function showFlashcard() {
-  if (schedule.length === 0) return;
-
-  const [front, back] = flashcards[schedule[currentIndex]];
-  container.innerHTML = '';
-
-  const card = document.createElement('div');
-  card.className = 'flashcard';
-  card.innerHTML = `
-    <div class="card-inner">
-      <div class="card-front">${front}</div>
-      <div class="card-back">${back}</div>
-    </div>`;
-
-  card.addEventListener('click', () => {
-    card.classList.toggle('flipped');
-    isFlipped = !isFlipped;
-  });
-
-  container.appendChild(card);
-
-  isFlipped = false; // reset when new card appears
-}
-
-// --- NAVIGATION ---
-function nextCard() {
-  currentIndex = (currentIndex + 1) % schedule.length;
-  showFlashcard();
-}
-function prevCard() {
-  currentIndex = (currentIndex - 1 + schedule.length) % schedule.length;
-  showFlashcard();
-}
-
-prevBtn.addEventListener('click', prevCard);
-nextBtn.addEventListener('click', nextCard);
-
-// --- UPDATE SCORE AND RESCHEDULE ---
-function updateScore(correct) {
-  const key = flashcards[schedule[currentIndex]][0];
-  scores[key] = scores[key] || 0;
-  scores[key] += correct ? 1 : -1; // increment if correct, decrement if wrong
-  localStorage.setItem('flashcardScores', JSON.stringify(scores));
-  sortSchedule();
-  nextCard();
-}
-
-correctBtn.addEventListener('click', () => updateScore(true));
-incorrectBtn.addEventListener('click', () => updateScore(false));
-
-// --- ADVANCED SWIPE CONTROLS ---
+// --- SWIPE LOGIC ---
 let startX = 0;
-let currentX = 0;
-let isDragging = false;
-let cardElement = null;
 
-function getCardElement() {
-  return document.querySelector('.flashcard');
-}
-
-container.addEventListener("touchstart", (e) => {
-  cardElement = getCardElement();
-  if (!cardElement) return;
-
+cardDiv.addEventListener("touchstart", (e) => {
   startX = e.touches[0].clientX;
-  isDragging = true;
-  cardElement.style.transition = "none";
 }, { passive: true });
 
-container.addEventListener("touchmove", (e) => {
-  if (!isDragging || !cardElement) return;
+cardDiv.addEventListener("touchend", (e) => {
+  const endX = e.changedTouches[0].clientX;
+  const deltaX = endX - startX;
+  const threshold = 50;
 
-  currentX = e.touches[0].clientX;
-  const deltaX = currentX - startX;
-
-  // Move card with finger
-  cardElement.style.transform = `translateX(${deltaX}px) rotate(${deltaX * 0.05}deg)`;
-
-  // Background feedback
-  if (deltaX > 0) {
-    document.body.style.background = "rgba(76, 175, 80, 0.2)"; // green
-  } else {
-    document.body.style.background = "rgba(244, 67, 54, 0.2)"; // red
+  if (Math.abs(deltaX) > threshold) {
+    // swipe right or left → next card
+    currentIndex = (currentIndex + 1) % flashcards.length;
+    showCard();
   }
-
 }, { passive: true });
-
-container.addEventListener("touchend", (e) => {
-  if (!isDragging || !cardElement) return;
-  isDragging = false;
-
-  const deltaX = currentX - startX;
-  const threshold = 100;
-
-  cardElement.style.transition = "transform 0.3s ease";
-
-  // 👉 SWIPE RIGHT
-  if (deltaX > threshold) {
-
-    // If not flipped yet → flip only
-    if (!isFlipped) {
-      cardElement.style.transform = "translateX(0)";
-      cardElement.classList.add("flipped");
-      isFlipped = true;
-      document.body.style.background = "#f0f0f0";
-    }
-
-    // If already flipped → mark correct
-    else {
-      cardElement.style.transform = "translateX(1000px)";
-      setTimeout(() => {
-        document.body.style.background = "#f0f0f0";
-        updateScore(true);
-      }, 300);
-    }
-
-  }
-
-  // 👈 SWIPE LEFT → always incorrect
-  else if (deltaX < -threshold) {
-    cardElement.style.transform = "translateX(-1000px)";
-    setTimeout(() => {
-      document.body.style.background = "#f0f0f0";
-      updateScore(false);
-    }, 300);
-  }
-
-  else {
-    cardElement.style.transform = "translateX(0)";
-    document.body.style.background = "#f0f0f0";
-  }
-
-  currentX = 0;
-}, { passive: true });
-
-// --- INITIAL LOAD ---
-fetchFlashcards();
-// Optional: auto-refresh from Google Sheet every 30s
-setInterval(fetchFlashcards, 30000);
-
-const statsBtn = document.getElementById("stats-btn");
-const statsPanel = document.getElementById("stats-panel");
-
-statsBtn.addEventListener("click", () => {
-  const saved = JSON.parse(localStorage.getItem('flashcardScores') || '{}');
-
-  let totalCorrect = 0;
-  let totalIncorrect = 0;
-
-  Object.values(saved).forEach(score => {
-    if (score > 0) totalCorrect += score;
-    if (score < 0) totalIncorrect += Math.abs(score);
-  });
-
-  const total = totalCorrect + totalIncorrect;
-  const accuracy = total ? Math.round((totalCorrect / total) * 100) : 0;
-
-  // Find weakest cards
-  const weakest = Object.entries(saved)
-    .sort((a, b) => a[1] - b[1])
-    .slice(0, 3);
-
-  statsPanel.innerHTML = `
-    <h3>Statistics</h3>
-    <p><strong>Total Correct:</strong> ${totalCorrect}</p>
-    <p><strong>Total Incorrect:</strong> ${totalIncorrect}</p>
-    <p><strong>Accuracy:</strong> ${accuracy}%</p>
-    <p><strong>Weakest Cards:</strong></p>
-    <ul>
-      ${weakest.map(card => `<li>${card[0]} (${card[1]})</li>`).join("")}
-    </ul>
-  `;
-
-  statsPanel.style.display =
-    statsPanel.style.display === "none" ? "block" : "none";
-});
 </script>
-
-<button id="stats-btn">Stats</button>
-
-<div id="stats-panel" style="display:none; margin-top:20px; background:white; padding:15px; border-radius:10px; width:300px;"></div>
 
 </body>
 </html>
