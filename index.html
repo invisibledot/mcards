@@ -3,8 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Flashcards Multi-Set + SM-2 (Google Sheets API)</title>
+<title>Flashcards Multi-Set + SM-2</title>
 <link rel="stylesheet" href="flashcards.css">
+<script src="https://cdn.jsdelivr.net/npm/papaparse@5.3.2/papaparse.min.js"></script>
 </head>
 <body>
 
@@ -19,15 +20,15 @@
 <!-- Flashcard area -->
 <div id="flashcardArea" class="hidden">
   <button id="backToMenu">← Back to Menu</button>
-  <div id="flashcard" class="flashcard">
-    <div class="card-inner">
-      <div class="card-front"></div>
-      <div class="card-back">
-        <div class="answer-text"></div>
-        <div class="extra"></div>
+    <div id="flashcard" class="flashcard">
+      <div class="card-inner">
+        <div class="card-front"></div>
+        <div class="card-back">
+          <div class="answer-text"></div>
+          <div class="extra"></div>
+        </div>
       </div>
     </div>
-  </div>
   <div id="score"></div>
 </div>
 
@@ -36,10 +37,9 @@
 const SPREADSHEET_ID = "1Qi7v0SdLPNeXWnNXu_taQcl0UfST1nVDJoBH0HXi_QE";
 const API_KEY = "AIzaSyDySSVjnljTxz1qvAhvUzHmbzF0eC8GVIQ";
 
-// Map of sets → sheet names
 const flashcardSets = {
-  "Swedish Verbs A1": `Sheet1`,
-  "Swedish Preterite A1": `Sheet2`
+  "Swedish Verbs A1": "SwedishVerbsA1",
+  "Swedish Preterite A1": "SwedishPreteriteA1"
 };
 
 // --- DOM ---
@@ -69,10 +69,10 @@ Object.keys(flashcardSets).forEach(name => {
   setSelector.appendChild(option);
 });
 
-// --- Initialize card for SM-2 ---
+// --- SM-2 card initialization ---
 function initializeCard(cardObj) {
   if (!cardData[cardObj.front]) {
-    cardData[cardObj.front] = { repetition:0, interval:0, ease:2.5, due: Date.now() };
+    cardData[cardObj.front] = { repetition: 0, interval: 0, ease: 2.5, due: Date.now() };
   }
 }
 
@@ -80,22 +80,23 @@ function initializeCard(cardObj) {
 function showCard() {
   const current = flashcards[currentIndex];
   initializeCard(current);
+
   frontDiv.textContent = current.front;
   answerDiv.textContent = current.back;
   extraDiv.textContent = current.note || "";
+
   card.classList.remove("flipped");
   isFlipped = false;
   updateScoreDisplay();
 }
 
-// --- Score display ---
 function updateScoreDisplay() {
   const cardObj = flashcards[currentIndex];
   const data = cardData[cardObj.front];
   scoreDiv.textContent = `Repetition: ${data.repetition}, Interval: ${data.interval} day(s)`;
 }
 
-// --- Tap to flip ---
+// --- Flip on click ---
 card.addEventListener("click", () => {
   card.classList.toggle("flipped");
   isFlipped = !isFlipped;
@@ -106,65 +107,68 @@ let startX = 0;
 card.addEventListener("touchstart", e => startX = e.touches[0].clientX, { passive:true });
 card.addEventListener("touchend", e => {
   const deltaX = e.changedTouches[0].clientX - startX;
-  const threshold = 50;
-  if (deltaX > threshold) { if(!isFlipped){ card.classList.add("flipped"); isFlipped=true } else markCorrect(); }
-  else if (deltaX < -threshold) markIncorrect();
+  if(deltaX>50){ if(!isFlipped){ card.classList.add("flipped"); isFlipped=true } else markCorrect(); }
+  else if(deltaX<-50) markIncorrect();
 });
 
 // --- SM-2 functions ---
-function markCorrect() {
+function markCorrect(){
   const cardObj = flashcards[currentIndex];
   const data = cardData[cardObj.front];
   data.repetition += 1;
   if(data.repetition===1) data.interval=1;
   else if(data.repetition===2) data.interval=3;
-  else data.interval = Math.round(data.interval*data.ease);
+  else data.interval=Math.round(data.interval*data.ease);
   data.due = Date.now() + data.interval*24*60*60*1000;
   saveSM2();
   nextCard();
 }
 
-function markIncorrect() {
+function markIncorrect(){
   const cardObj = flashcards[currentIndex];
   const data = cardData[cardObj.front];
-  data.repetition = 0;
-  data.interval = 1;
-  data.due = Date.now() + 24*60*60*1000;
+  data.repetition=0;
+  data.interval=1;
+  data.due=Date.now()+24*60*60*1000;
   saveSM2();
   nextCard();
 }
 
 // --- Next card ---
-function nextCard() {
+function nextCard(){
   const now = Date.now();
-  const dueCards = flashcards.filter(c => { initializeCard(c); return cardData[c.front].due <= now; });
+  const dueCards = flashcards.filter(c=>{ initializeCard(c); return cardData[c.front].due<=now });
   if(dueCards.length===0){ showNoCardsMessage(); return; }
   const randomCard = dueCards[Math.floor(Math.random()*dueCards.length)];
   currentIndex = flashcards.findIndex(c=>c.front===randomCard.front);
   showCard();
 }
 
-function showNoCardsMessage() {
+function showNoCardsMessage(){
   card.classList.remove("flipped");
-  frontDiv.textContent = "🎉 All done!";
-  answerDiv.textContent = "No cards due right now.";
-  extraDiv.textContent = "";
+  frontDiv.textContent="🎉 All done!";
+  answerDiv.textContent="No cards due right now.";
+  extraDiv.textContent="";
   isFlipped=false;
   scoreDiv.textContent="";
 }
 
-// --- Save ---
-function saveSM2() { localStorage.setItem(storageKey, JSON.stringify(cardData)); }
+function saveSM2(){ localStorage.setItem(storageKey, JSON.stringify(cardData)); }
 
 // --- Load from Google Sheets API ---
-async function loadFlashcardsFromSheet(sheetName) {
+async function loadFlashcardsFromSheet(sheetName){
   const apiUrl = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${sheetName}?key=${API_KEY}`;
   const res = await fetch(apiUrl);
   const json = await res.json();
   const rows = json.values || [];
-  flashcards = rows.filter(r=>r.length>=2).map(r=>({ front:r[0].trim(), back:r[1].trim(), note:r[2]?r[2].trim():"" }));
+  flashcards = rows.filter(r=>r.length>=2).map(r=>({
+    front: r[0].trim(),
+    back: r[1].trim(),
+    note: r[2]?r[2].trim():""
+  }));
   flashcards.forEach(initializeCard);
-  showCard();
+  if(flashcards.length>0) showCard();
+  else alert("No cards found in this sheet.");
 }
 
 // --- Menu selection ---
@@ -179,12 +183,11 @@ setSelector.addEventListener("change", () => {
 });
 
 // --- Back to menu ---
-backBtn.addEventListener("click", () => {
+backBtn.addEventListener("click", ()=>{
   menuDiv.classList.remove("hidden");
   flashcardArea.classList.add("hidden");
 });
-
-// --- Done ---
 </script>
+
 </body>
 </html>
