@@ -39,6 +39,13 @@ let scores = {}; // track correct/incorrect
 const card = document.getElementById("flashcard");
 const frontDiv = card.querySelector(".card-front");
 const backDiv = card.querySelector(".card-back");
+const scoreDiv = document.getElementById("score");
+
+function updateScoreDisplay() {
+  const key = flashcards[currentIndex].front;
+  const value = scores[key] || 0;
+  scoreDiv.textContent = `Current score for this card: ${value}`;
+}
 
 // --- SHOW CARD ---
 function showCard() {
@@ -99,14 +106,6 @@ function nextCard() {
 
 // --- INITIAL LOAD ---
 showCard();
-
-const scoreDiv = document.getElementById("score");
-
-function updateScoreDisplay() {
-  const key = flashcards[currentIndex].front;
-  const value = scores[key] || 0;
-  scoreDiv.textContent = `Current score for this card: ${value}`;
-}
 </script>
 
 </body>
