@@ -1,0 +1,117 @@
+/* flashcards.css */
+
+/* --- BODY & GENERAL --- */
+body {
+  font-family: sans-serif;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  margin: 0;
+  padding: 20px;
+  background: #f0f0f0;
+}
+
+.hidden {
+  display: none;
+}
+
+select, button {
+  font-size: 16px;
+  padding: 5px;
+  margin-top: 20px;
+}
+
+/* --- FLASHCARD CONTAINER --- */
+.flashcard {
+  width: 300px;
+  height: 200px;
+  perspective: 1000px;
+  user-select: none;
+  margin-top: 20px;
+}
+
+/* --- CARD INNER (3D FLIP) --- */
+.card-inner {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  transition: transform 0.6s;
+  transform-style: preserve-3d;
+}
+
+/* --- FLIPPED STATE --- */
+.flashcard.flipped .card-inner {
+  transform: rotateY(180deg);
+}
+
+/* --- FRONT & BACK SIDES --- */
+.card-front,
+.card-back {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column; /* allow note under main text */
+  justify-content: center;
+  align-items: center;
+  padding: 20px;
+  backface-visibility: hidden; /* hide side when facing away */
+  transition: opacity 0.3s ease;
+}
+
+/* --- FRONT SIDE --- */
+.card-front {
+  background: white;
+  border-radius: 10px;
+  box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+  opacity: 1;
+}
+
+/* Hide front when flipped */
+.flashcard.flipped .card-front {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* --- BACK SIDE --- */
+.card-back {
+  background: #4caf50;
+  color: white;
+  border-radius: 10px;
+  box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+  transform: rotateY(180deg);
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Show back only when flipped */
+.flashcard.flipped .card-back {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* --- ANSWER & EXTRA --- */
+.answer-text {
+  font-size: 24px;
+  text-align: center;
+}
+
+.extra {
+  margin-top: 10px;
+  font-size: 16px;
+  color: #fff;
+  text-align: center;
+  min-height: 20px;
+}
+
+/* --- SCORE --- */
+#score {
+  margin-top: 10px;
+  font-size: 16px;
+}
+
+/* --- BACK TO MENU BUTTON --- */
+#backToMenu {
+  margin-bottom: 10px;
+}
