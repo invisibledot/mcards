@@ -10,14 +10,14 @@
 </head>
 <body>
 
-<!-- Menu -->
+<!-- MENU -->
 <div id="menu">
   <h2>Select a Flashcard Set</h2>
   <div id="setList"></div>
 </div>
 
-<!-- Flashcard area -->
-<div id="flashcardArea" class="hidden">
+<!-- FLASHCARD AREA -->
+<div id="flashcardArea" class="hidden neutral">
   <button id="backToMenu">← Back</button>
 
   <div id="flashcard" class="flashcard">
@@ -37,97 +37,162 @@
 const SPREADSHEET_ID = CONFIG.SPREADSHEET_ID;
 const API_KEY = CONFIG.API_KEY;
 
-// DOM elements
+// DOM references
 const menuDiv = document.getElementById("menu");
 const flashcardArea = document.getElementById("flashcardArea");
-const setSelector = document.getElementById("setSelector");
 const backBtn = document.getElementById("backToMenu");
+const setList = document.getElementById("setList");
 const card = document.getElementById("flashcard");
+const inner = card.querySelector(".card-inner");
 const frontDiv = card.querySelector(".card-front");
 const backDiv = card.querySelector(".card-back");
 const answerDiv = backDiv.querySelector(".answer-text");
 const extraDiv = backDiv.querySelector(".extra");
 const scoreDiv = document.getElementById("score");
 
-// State
+// STATE
 let flashcards = [];
 let currentIndex = 0;
-let isFlipped = false;
 let cardData = {};
 let storageKey = "";
+let isFlipped = false;
 
-// --- Flip card ---
-card.addEventListener("click", () => {
+// --- SWIPE VARIABLES ---
+let startX = 0, currentX = 0, isDragging = false;
+const threshold = 120;
+const maxRotation = 25;
+const maxTranslate = window.innerWidth * 0.8;
+
+// --- CARD FLIP ---
+function toggleFlip() {
   card.classList.toggle("flipped");
   isFlipped = !isFlipped;
+}
+
+card.addEventListener("click", e => {
+  // Only allow flip if not dragging
+  if (!isDragging) toggleFlip();
 });
 
-// --- Swipe logic ---
-let startX = 0;
-card.addEventListener("touchstart", e => startX = e.touches[0].clientX, { passive:true });
-card.addEventListener("touchend", e => {
-  const deltaX = e.changedTouches[0].clientX - startX;
-  if(deltaX > 50){ if(!isFlipped){ card.classList.add("flipped"); isFlipped=true; } else markCorrect(); }
-  else if(deltaX < -50) markIncorrect();
+// --- POINTER SWIPE ---
+card.addEventListener("pointerdown", e => {
+  startX = e.clientX;
+  isDragging = true;
+  card.classList.add("dragging");
+  card.setPointerCapture(e.pointerId);
 });
 
-// --- SM-2 ---
-function initializeCard(c){ if(!cardData[c.front]) cardData[c.front]={repetition:0,interval:0,ease:2.5,due:Date.now()}; }
+card.addEventListener("pointermove", e => {
+  if (!isDragging) return;
+  currentX = e.clientX;
+  const deltaX = currentX - startX;
+  const rotate = (deltaX / window.innerWidth) * maxRotation;
+  inner.style.transform = `translateX(${deltaX}px) rotate(${rotate}deg)`;
+
+  // Background fade
+  const intensity = Math.min(Math.abs(deltaX) / threshold, 1);
+  if (deltaX > 0) flashcardArea.style.background = `rgba(76,175,80,${0.15 + 0.35*intensity})`;
+  else if (deltaX < 0) flashcardArea.style.background = `rgba(244,67,54,${0.15 + 0.35*intensity})`;
+});
+
+card.addEventListener("pointerup", e => {
+  if (!isDragging) return;
+  isDragging = false;
+  card.classList.remove("dragging");
+
+  const deltaX = e.clientX - startX;
+  if (deltaX > threshold) flyCard("right");
+  else if (deltaX < -threshold) flyCard("left");
+  else snapBack();
+
+  setTimeout(() => flashcardArea.style.background = "", 300);
+});
+
+card.addEventListener("pointercancel", snapBack);
+
+function flyCard(direction) {
+  const translate = direction === "right" ? maxTranslate : -maxTranslate;
+  const rotate = direction === "right" ? maxRotation : -maxRotation;
+
+  inner.style.transition = "transform 0.4s ease-out";
+  inner.style.transform = `translateX(${translate}px) rotate(${rotate}deg)`;
+
+  setTimeout(() => {
+    resetCardPosition();
+    if (direction === "right") markCorrect();
+    else markIncorrect();
+  }, 400);
+}
+
+function snapBack() {
+  inner.style.transition = "transform 0.3s ease";
+  inner.style.transform = "";
+  setTimeout(resetCardPosition, 300);
+}
+
+function resetCardPosition() {
+  inner.style.transition = "none";
+  inner.style.transform = "";
+}
+
+// --- SM-2 LOGIC ---
+function initializeCard(c){ 
+  if(!cardData[c.front]) cardData[c.front] = { repetition:0, interval:0, ease:2.5, due:Date.now() };
+}
 
 function markCorrect(){
-  const c=flashcards[currentIndex], d=cardData[c.front];
-  d.repetition+=1;
-  d.interval=d.repetition===1?1:d.repetition===2?3:Math.round(d.interval*d.ease);
-  d.due=Date.now()+d.interval*24*60*60*1000;
+  const c = flashcards[currentIndex], d = cardData[c.front];
+  d.repetition += 1;
+  d.interval = d.repetition===1?1:d.repetition===2?3:Math.round(d.interval*d.ease);
+  d.due = Date.now() + d.interval*24*60*60*1000;
   saveSM2(); nextCard();
 }
 
 function markIncorrect(){
-  const c=flashcards[currentIndex], d=cardData[c.front];
-  d.repetition=0; d.interval=1; d.due=Date.now()+24*60*60*1000;
+  const c = flashcards[currentIndex], d = cardData[c.front];
+  d.repetition = 0; d.interval = 1; d.due = Date.now() + 24*60*60*1000;
   saveSM2(); nextCard();
 }
 
 function nextCard(){
-  const now=Date.now();
-  const dueCards=flashcards.filter(c=>{initializeCard(c); return cardData[c.front].due<=now;});
+  const now = Date.now();
+  const dueCards = flashcards.filter(c=>{ initializeCard(c); return cardData[c.front].due <= now; });
   if(dueCards.length===0){ showNoCardsMessage(); return; }
-  const random=dueCards[Math.floor(Math.random()*dueCards.length)];
-  currentIndex=flashcards.findIndex(c=>c.front===random.front);
+  const random = dueCards[Math.floor(Math.random()*dueCards.length)];
+  currentIndex = flashcards.findIndex(c=>c.front === random.front);
   showCard();
 }
 
 function showNoCardsMessage(){
   card.classList.remove("flipped");
-  frontDiv.textContent="🎉 All done!";
-  answerDiv.textContent="No cards due right now.";
-  extraDiv.textContent="";
-  isFlipped=false;
-  scoreDiv.textContent="";
+  frontDiv.textContent = "🎉 All done!";
+  answerDiv.textContent = "No cards due right now.";
+  extraDiv.textContent = "";
+  isFlipped = false;
+  scoreDiv.textContent = "";
 }
 
 function showCard(){
-  const c=flashcards[currentIndex];
+  const c = flashcards[currentIndex];
   initializeCard(c);
-  frontDiv.textContent=c.front;
-  answerDiv.textContent=c.back;
-  extraDiv.textContent=c.note||"";
+  frontDiv.textContent = c.front;
+  answerDiv.textContent = c.back;
+  extraDiv.textContent = c.note || "";
   card.classList.remove("flipped");
-  isFlipped=false;
-  const d=cardData[c.front]; scoreDiv.textContent=`Repetition: ${d.repetition}, Interval: ${d.interval} day(s)`;
+  isFlipped = false;
+
+  const d = cardData[c.front];
+  scoreDiv.textContent = `Repetition: ${d.repetition}, Interval: ${d.interval} day(s)`;
 }
 
-function saveSM2(){ localStorage.setItem(storageKey,JSON.stringify(cardData)); }
+function saveSM2(){ localStorage.setItem(storageKey, JSON.stringify(cardData)); }
 
-// --- Load sheets ---
-const setList = document.getElementById("setList");
-
+// --- LOAD SHEETS ---
 async function loadSheetNames() {
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}?fields=sheets(properties(title))&key=${API_KEY}`;
   const res = await fetch(url);
   const json = await res.json();
   const sheets = json.sheets || [];
-
   sheets.forEach(s => {
     const btn = document.createElement("button");
     btn.textContent = s.properties.title;
@@ -140,31 +205,28 @@ async function loadSheetNames() {
 function selectSheet(sheetName) {
   storageKey = `sm2Data-${sheetName}`;
   cardData = JSON.parse(localStorage.getItem(storageKey)) || {};
-
   menuDiv.classList.add("hidden");
   flashcardArea.classList.remove("hidden");
-
   loadFlashcardsFromSheet(sheetName);
 }
 
-// --- Load sheet values ---
 async function loadFlashcardsFromSheet(sheetName){
-  const url=`https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${sheetName}?key=${API_KEY}`;
-  const res=await fetch(url);
-  const json=await res.json();
-  const rows=json.values||[];
-  flashcards=rows.filter(r=>r.length>=2).map(r=>({front:r[0].trim(),back:r[1].trim(),note:r[2]?r[2].trim():""}));
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${sheetName}?key=${API_KEY}`;
+  const res = await fetch(url);
+  const json = await res.json();
+  const rows = json.values || [];
+  flashcards = rows.filter(r=>r.length>=2).map(r=>({ front:r[0].trim(), back:r[1].trim(), note:r[2]?r[2].trim():"" }));
   flashcards.forEach(initializeCard);
   showCard();
 }
 
-// --- Back to menu ---
+// --- BACK TO MENU ---
 backBtn.addEventListener("click",()=>{
   menuDiv.classList.remove("hidden");
   flashcardArea.classList.add("hidden");
 });
 
-// --- Init ---
+// --- INIT ---
 loadSheetNames();
 </script>
 </body>
