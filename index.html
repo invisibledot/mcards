@@ -25,12 +25,12 @@
 <div id="flashcard" class="flashcard">
   <div class="card-inner">
     <div class="card-front"></div>
-    <div class="card-back"></div>
+    <div class="card-back">
+      <div class="answer-text"></div>
+      <div class="extra"></div>
+    </div>
   </div>
 </div>
-
-<div id="extra" class="extra"></div>
-<div id="score"></div>
 
 <script>
 // --- SETS ---
@@ -56,9 +56,9 @@ let storageKey = "";
 
 // --- DOM ---
 const card = document.getElementById("flashcard");
-const frontDiv = card.querySelector(".card-front");
 const backDiv = card.querySelector(".card-back");
-const extraDiv = document.getElementById("extra");
+const answerDiv = backDiv.querySelector(".answer-text");
+const extraDiv = backDiv.querySelector(".extra");
 const scoreDiv = document.getElementById("score");
 
 // --- UPDATE SCORE DISPLAY ---
@@ -102,8 +102,8 @@ function showCard() {
   initializeCard(current);
 
   frontDiv.textContent = current.front;
-  backDiv.textContent = current.back;
-  extraDiv.textContent = current.note || "";
+  answerDiv.textContent = current.back;     // main answer
+  extraDiv.textContent = current.note || ""; // optional note underneath
 
   card.classList.remove("flipped");
   isFlipped = false;
