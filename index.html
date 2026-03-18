@@ -102,13 +102,37 @@ function markIncorrect() {
 
 // --- NEXT CARD ---
 function nextCard() {
-  currentIndex = (currentIndex + 1) % flashcards.length;
+  currentIndex = getWeightedRandomIndex();
   showCard();
 }
 
 // --- SAVE SCORES ---
 function saveScores() {
   localStorage.setItem("flashcardScores", JSON.stringify(scores));
+}
+
+// --- SPACED REPETITION ---
+function getWeightedRandomIndex() {
+  const weights = flashcards.map(card => {
+    const score = scores[card.front] || 0;
+
+    // Convert score into weight
+    // Lower score = higher weight
+    // Add 5 to avoid zero/negative weight
+    return Math.max(1, 5 - score);
+  });
+
+  const totalWeight = weights.reduce((sum, w) => sum + w, 0);
+  let random = Math.random() * totalWeight;
+
+  for (let i = 0; i < weights.length; i++) {
+    if (random < weights[i]) {
+      return i;
+    }
+    random -= weights[i];
+  }
+
+  return 0; // fallback
 }
 
 // --- INITIAL LOAD ---
