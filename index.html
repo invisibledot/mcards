@@ -22,6 +22,8 @@
   </div>
 </div>
 
+<div id="score" style="margin-top: 20px; font-size: 18px;"></div>
+
 <script>
 // --- FLASHCARDS DATA ---
 const flashcards = [
@@ -45,6 +47,7 @@ function showCard() {
   backDiv.textContent = current.back;
   card.classList.remove("flipped");
   isFlipped = false;
+  updateScoreDisplay();  // <- add this
 }
 
 // --- TAP TO FLIP ---
@@ -80,12 +83,14 @@ function markCorrect() {
   const key = flashcards[currentIndex].front;
   scores[key] = (scores[key] || 0) + 1;
   nextCard();
+  updateScoreDisplay();  // <- optional here if you want immediate update
 }
 
 function markIncorrect() {
   const key = flashcards[currentIndex].front;
   scores[key] = (scores[key] || 0) - 1;
   nextCard();
+  updateScoreDisplay();
 }
 
 // --- NEXT CARD ---
@@ -96,6 +101,14 @@ function nextCard() {
 
 // --- INITIAL LOAD ---
 showCard();
+
+const scoreDiv = document.getElementById("score");
+
+function updateScoreDisplay() {
+  const key = flashcards[currentIndex].front;
+  const value = scores[key] || 0;
+  scoreDiv.textContent = `Current score for this card: ${value}`;
+}
 </script>
 
 </body>
