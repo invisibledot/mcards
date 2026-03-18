@@ -134,7 +134,7 @@ function nextCard() {
   });
 
   if (dueCards.length === 0) {
-    alert("No cards due right now 🎉");
+    showNoCardsMessage();
     return;
   }
 
@@ -188,6 +188,14 @@ function initializeCard(card) {
 // --- SAVE FUNCTION ---
 function saveSM2() {
   localStorage.setItem("sm2Data", JSON.stringify(cardData));
+}
+
+// --- NO CARDS MESSAGE ---
+function showNoCardsMessage() {
+  card.classList.remove("flipped");
+  frontDiv.textContent = "🎉 All done!";
+  backDiv.textContent = "No cards due right now.";
+  isFlipped = false;
 }
 
 // --- INITIAL LOAD ---
