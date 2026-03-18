@@ -83,14 +83,12 @@ function markCorrect() {
   const key = flashcards[currentIndex].front;
   scores[key] = (scores[key] || 0) + 1;
   nextCard();
-  updateScoreDisplay();  // <- optional here if you want immediate update
 }
 
 function markIncorrect() {
   const key = flashcards[currentIndex].front;
   scores[key] = (scores[key] || 0) - 1;
   nextCard();
-  updateScoreDisplay();
 }
 
 // --- NEXT CARD ---
