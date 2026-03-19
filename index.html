@@ -30,6 +30,10 @@
     </div>
   </div>
 
+  <div id="progressContainer">
+    <div id="progressBar"></div>
+  </div>
+
   <div id="score"></div>
 </div>
 
@@ -49,13 +53,20 @@ const backDiv = card.querySelector(".card-back");
 const answerDiv = backDiv.querySelector(".answer-text");
 const extraDiv = backDiv.querySelector(".extra");
 const scoreDiv = document.getElementById("score");
+const progressBar = document.getElementById("progressBar");
 
 // STATE
 let flashcards = [];
 let currentIndex = 0;
 let cardData = {};
 let storageKey = "";
+let statsKey = "";
 let isFlipped = false;
+let sessionTotalDue = 0;
+
+// --- STATISTICS ---
+let sessionStats = { reviewed: 0, correct: 0, incorrect: 0 };
+let lifetimeStats = { reviewed: 0, correct: 0, incorrect: 0 };
 
 // --- SWIPE VARIABLES ---
 let startX = 0, currentX = 0, isDragging = false;
@@ -64,21 +75,17 @@ const maxRotation = 25;
 const maxTranslate = window.innerWidth * 0.8;
 
 // --- CARD FLIP ---
-function toggleFlip() {
-  card.classList.toggle("flipped");
-  isFlipped = !isFlipped;
-}
-
-card.addEventListener("click", e => {
-  // Only allow flip if not dragging
-  if (!isDragging) toggleFlip();
+card.addEventListener("click", () => {
+  if (!isDragging) {
+    card.classList.toggle("flipped");
+    isFlipped = !isFlipped;
+  }
 });
 
 // --- POINTER SWIPE ---
 card.addEventListener("pointerdown", e => {
   startX = e.clientX;
   isDragging = true;
-  card.classList.add("dragging");
   card.setPointerCapture(e.pointerId);
 });
 
@@ -89,26 +96,25 @@ card.addEventListener("pointermove", e => {
   const rotate = (deltaX / window.innerWidth) * maxRotation;
   inner.style.transform = `translateX(${deltaX}px) rotate(${rotate}deg)`;
 
-  // Background fade
   const intensity = Math.min(Math.abs(deltaX) / threshold, 1);
-  if (deltaX > 0) flashcardArea.style.background = `rgba(76,175,80,${0.15 + 0.35*intensity})`;
-  else if (deltaX < 0) flashcardArea.style.background = `rgba(244,67,54,${0.15 + 0.35*intensity})`;
+  if (deltaX > 0)
+    flashcardArea.style.background = `rgba(76,175,80,${0.15 + 0.35*intensity})`;
+  else if (deltaX < 0)
+    flashcardArea.style.background = `rgba(244,67,54,${0.15 + 0.35*intensity})`;
 });
 
 card.addEventListener("pointerup", e => {
   if (!isDragging) return;
   isDragging = false;
-  card.classList.remove("dragging");
 
   const deltaX = e.clientX - startX;
+
   if (deltaX > threshold) flyCard("right");
   else if (deltaX < -threshold) flyCard("left");
   else snapBack();
 
   setTimeout(() => flashcardArea.style.background = "", 300);
 });
-
-card.addEventListener("pointercancel", snapBack);
 
 function flyCard(direction) {
   const translate = direction === "right" ? maxTranslate : -maxTranslate;
@@ -119,8 +125,7 @@ function flyCard(direction) {
 
   setTimeout(() => {
     resetCardPosition();
-    if (direction === "right") markCorrect();
-    else markIncorrect();
+    direction === "right" ? markCorrect() : markIncorrect();
   }, 400);
 }
 
@@ -135,41 +140,56 @@ function resetCardPosition() {
   inner.style.transform = "";
 }
 
-// --- SM-2 LOGIC ---
-function initializeCard(c){ 
-  if(!cardData[c.front]) cardData[c.front] = { repetition:0, interval:0, ease:2.5, due:Date.now() };
+// --- SM-2 ---
+function initializeCard(c){
+  if(!cardData[c.front])
+    cardData[c.front] = { repetition:0, interval:0, ease:2.5, due:Date.now() };
 }
 
 function markCorrect(){
   const c = flashcards[currentIndex], d = cardData[c.front];
-  d.repetition += 1;
+  d.repetition++;
   d.interval = d.repetition===1?1:d.repetition===2?3:Math.round(d.interval*d.ease);
-  d.due = Date.now() + d.interval*24*60*60*1000;
-  saveSM2(); nextCard();
+  d.due = Date.now() + d.interval*86400000;
+
+  sessionStats.reviewed++;
+  sessionStats.correct++;
+  lifetimeStats.reviewed++;
+  lifetimeStats.correct++;
+
+  saveAll();
+  nextCard();
 }
 
 function markIncorrect(){
   const c = flashcards[currentIndex], d = cardData[c.front];
-  d.repetition = 0; d.interval = 1; d.due = Date.now() + 24*60*60*1000;
-  saveSM2(); nextCard();
+  d.repetition = 0;
+  d.interval = 1;
+  d.due = Date.now() + 86400000;
+
+  sessionStats.reviewed++;
+  sessionStats.incorrect++;
+  lifetimeStats.reviewed++;
+  lifetimeStats.incorrect++;
+
+  saveAll();
+  nextCard();
 }
 
 function nextCard(){
-  const now = Date.now();
-  const dueCards = flashcards.filter(c=>{ initializeCard(c); return cardData[c.front].due <= now; });
-  if(dueCards.length===0){ showNoCardsMessage(); return; }
-  const random = dueCards[Math.floor(Math.random()*dueCards.length)];
-  currentIndex = flashcards.findIndex(c=>c.front === random.front);
-  showCard();
-}
+  updateProgressBar();
 
-function showNoCardsMessage(){
-  card.classList.remove("flipped");
-  frontDiv.textContent = "🎉 All done!";
-  answerDiv.textContent = "No cards due right now.";
-  extraDiv.textContent = "";
-  isFlipped = false;
-  scoreDiv.textContent = "";
+  const now = Date.now();
+  const dueCards = flashcards.filter(c=>{
+    initializeCard(c);
+    return cardData[c.front].due <= now;
+  });
+
+  if(dueCards.length===0){ showNoCardsMessage(); return; }
+
+  const random = dueCards[Math.floor(Math.random()*dueCards.length)];
+  currentIndex = flashcards.findIndex(c=>c.front===random.front);
+  showCard();
 }
 
 function showCard(){
@@ -180,20 +200,56 @@ function showCard(){
   extraDiv.textContent = c.note || "";
   card.classList.remove("flipped");
   isFlipped = false;
-
-  const d = cardData[c.front];
-  scoreDiv.textContent = `Repetition: ${d.repetition}, Interval: ${d.interval} day(s)`;
+  updateStatsUI();
 }
 
-function saveSM2(){ localStorage.setItem(storageKey, JSON.stringify(cardData)); }
+function showNoCardsMessage(){
+  progressBar.style.width = "100%";
+  frontDiv.textContent = "🎉 All done!";
+  answerDiv.textContent = "No cards due right now.";
+  extraDiv.textContent = "";
+}
+
+// --- PROGRESS BAR ---
+function updateProgressBar(){
+  if(sessionTotalDue === 0){
+    progressBar.style.width = "100%";
+    return;
+  }
+  const progress = Math.min(sessionStats.reviewed / sessionTotalDue, 1);
+  progressBar.style.width = `${progress*100}%`;
+}
+
+// --- STATS UI ---
+function updateStatsUI(){
+  const sessionAcc = sessionStats.reviewed
+    ? Math.round((sessionStats.correct/sessionStats.reviewed)*100)
+    : 0;
+
+  const lifetimeAcc = lifetimeStats.reviewed
+    ? Math.round((lifetimeStats.correct/lifetimeStats.reviewed)*100)
+    : 0;
+
+  scoreDiv.innerHTML = `
+    <strong>Session:</strong> ${sessionStats.reviewed} |
+    🎯 ${sessionAcc}% 
+    <br>
+    <strong>All-time:</strong> ${lifetimeStats.reviewed} |
+    🎯 ${lifetimeAcc}%
+  `;
+}
+
+function saveAll(){
+  localStorage.setItem(storageKey, JSON.stringify(cardData));
+  localStorage.setItem(statsKey, JSON.stringify(lifetimeStats));
+}
 
 // --- LOAD SHEETS ---
-async function loadSheetNames() {
+async function loadSheetNames(){
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}?fields=sheets(properties(title))&key=${API_KEY}`;
   const res = await fetch(url);
   const json = await res.json();
-  const sheets = json.sheets || [];
-  sheets.forEach(s => {
+  (json.sheets||[]).forEach(s=>{
     const btn = document.createElement("button");
     btn.textContent = s.properties.title;
     btn.className = "set-button";
@@ -202,11 +258,19 @@ async function loadSheetNames() {
   });
 }
 
-function selectSheet(sheetName) {
+function selectSheet(sheetName){
   storageKey = `sm2Data-${sheetName}`;
+  statsKey = `stats-${sheetName}`;
+
   cardData = JSON.parse(localStorage.getItem(storageKey)) || {};
+  lifetimeStats = JSON.parse(localStorage.getItem(statsKey)) || {reviewed:0,correct:0,incorrect:0};
+  sessionStats = {reviewed:0,correct:0,incorrect:0};
+
+  progressBar.style.width = "0%";
+
   menuDiv.classList.add("hidden");
   flashcardArea.classList.remove("hidden");
+
   loadFlashcardsFromSheet(sheetName);
 }
 
@@ -215,18 +279,26 @@ async function loadFlashcardsFromSheet(sheetName){
   const res = await fetch(url);
   const json = await res.json();
   const rows = json.values || [];
-  flashcards = rows.filter(r=>r.length>=2).map(r=>({ front:r[0].trim(), back:r[1].trim(), note:r[2]?r[2].trim():"" }));
+
+  flashcards = rows
+    .filter(r=>r.length>=2)
+    .map(r=>({front:r[0].trim(),back:r[1].trim(),note:r[2]?r[2].trim():""}));
+
   flashcards.forEach(initializeCard);
-  showCard();
+
+  const now = Date.now();
+  sessionTotalDue = flashcards.filter(c=>cardData[c.front].due <= now).length;
+
+  updateProgressBar();
+  nextCard();
 }
 
-// --- BACK TO MENU ---
 backBtn.addEventListener("click",()=>{
   menuDiv.classList.remove("hidden");
   flashcardArea.classList.add("hidden");
+  progressBar.style.width = "0%";
 });
 
-// --- INIT ---
 loadSheetNames();
 </script>
 </body>
