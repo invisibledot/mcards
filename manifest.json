@@ -1,6 +1,6 @@
 {
-  "name": "Smart Flashcards",
-  "short_name": "Flashcards",
+  "name": "Melanie's Flashcards",
+  "short_name": "mcards",
   "start_url": "./",
   "display": "standalone",
   "background_color": "#f0f0f0",
